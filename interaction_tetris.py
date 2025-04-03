@@ -53,6 +53,27 @@ def main():
             print(f"Warning: No corresponding ringNodes file found for {ringedges_file}, skipping...")
             continue
         
+        # Parse the ringNodes file to get DSSP information
+        residue_dssp = {}  # Maps (chain, resnum) -> dssp
+        with open(ringnodes_file, 'r') as f:
+            lines = f.readlines()
+            # Skip header
+            for line in lines[1:]:
+                fields = line.strip().split('\t')
+                if len(fields) < 6:  # Need at least 6 fields to get DSSP
+                    continue
+                node_id = fields[0]  # e.g. 'A:1:_:GLU'
+                chain = fields[1]
+                position = fields[2]
+                dssp = fields[5]
+                
+                # Store DSSP for this residue
+                try:
+                    resnum_int = int(position)
+                    residue_dssp[(chain, resnum_int)] = dssp
+                except ValueError:
+                    continue
+        
         # Parse the ringEdges file
         with open(ringedges_file, 'r') as f:
             lines = f.readlines()
@@ -79,13 +100,17 @@ def main():
                 except ValueError:
                     continue
                 
+                # Get DSSP information
+                dssp1 = residue_dssp.get((chain1, resnum1_int), "")
+                dssp2 = residue_dssp.get((chain2, resnum2_int), "")
+                
                 # We only care about chain A <-> chain B
                 if chain1 == 'A' and chain2 == 'B':
                     interactions[(resnum2_int, res3name2)][res3name1] += 1
-                    interaction_details[(resnum2_int, res3name2)][res3name1].append((base_filename, resnum1_int))
+                    interaction_details[(resnum2_int, res3name2)][res3name1].append((base_filename, resnum1_int, dssp1))
                 elif chain1 == 'B' and chain2 == 'A':
                     interactions[(resnum1_int, res3name1)][res3name2] += 1
-                    interaction_details[(resnum1_int, res3name1)][res3name2].append((base_filename, resnum1_int))
+                    interaction_details[(resnum1_int, res3name1)][res3name2].append((base_filename, resnum2_int, dssp2))
 
     # Summarize the total interactions and pick the top N
     b_info_list = []
@@ -123,9 +148,10 @@ def main():
             single_letter_details[aa1].extend(a_details[aa3])
         
         # Build the row:
-        # "B:res_num:1letter" format
+        # "B:res_num:1letter:dssp" format
         b_res_1letter = AA_3TO1.get(b_res_3name, 'X')
-        b_label = f"B:{b_res_num}:{b_res_1letter}"
+        b_dssp = residue_dssp.get(("B", b_res_num), "")
+        b_label = f"B:{b_res_num}:{b_res_1letter}:{b_dssp}"
         row = [b_label, str(total_int)]
         
         # Frequencies for each standard AA in AA_ORDER
@@ -140,8 +166,8 @@ def main():
             if aa1 in single_letter_details:
                 # Sort by residue number
                 sorted_details = sorted(single_letter_details[aa1], key=lambda x: x[1])
-                for filename, resnum in sorted_details:
-                    details_list.append(f"{filename}:A:{resnum}:{aa1}")
+                for filename, resnum, dssp in sorted_details:
+                    details_list.append(f"{filename}:A:{resnum}:{aa1}:{dssp}")
         
         row.append("|".join(details_list))
         
