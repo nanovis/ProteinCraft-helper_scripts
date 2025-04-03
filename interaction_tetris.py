@@ -15,29 +15,6 @@ AA_3TO1 = {
 # Choose a fixed order for one-letter amino acids
 AA_ORDER = ['A','R','N','D','C','Q','E','G','H','I','L','K','M','F','P','S','T','W','Y','V']
 
-def parse_ring_nodes(ring_nodes_file):
-    """
-    Parse the *_ringNodes file to find the maximum 'Position' for chain A.
-    Returns an integer, e.g. 63 if the highest residue on chain A is 63.
-    If no chain A found, returns 0 (no offset).
-    """
-    max_position_a = 0
-    with open(ring_nodes_file, 'r') as f:
-        # Skip header
-        next(f)
-        for line in f:
-            fields = line.strip().split('\t')
-            if len(fields) < 3:
-                continue
-            chain = fields[1]  # e.g. 'A' or 'B'
-            try:
-                position = int(fields[2])
-            except ValueError:
-                continue
-            if chain == 'A' and position > max_position_a:
-                max_position_a = position
-    return max_position_a
-
 def parse_node_id(node_str):
     """
     Given a NodeId like 'A:50:_:LYS',
@@ -49,9 +26,9 @@ def parse_node_id(node_str):
     residue_3name = parts[3]  # e.g. 'LYS'
     return chain_id, residue_num, residue_3name
 
-# This dict maps (b_res_num_norm, b_res_name_3, b_res_orig) -> { a_res_name_3: count_of_interactions }
+# This dict maps (b_res_num, b_res_name_3) -> { a_res_name_3: count_of_interactions }
 interactions = defaultdict(lambda: defaultdict(int))
-# This dict maps (b_res_num_norm, b_res_name_3, b_res_orig) -> { a_res_name_3: [(filename, resnum), ...] }
+# This dict maps (b_res_num, b_res_name_3) -> { a_res_name_3: [(filename, resnum), ...] }
 interaction_details = defaultdict(lambda: defaultdict(list))
 
 def main():
@@ -76,10 +53,7 @@ def main():
             print(f"Warning: No corresponding ringNodes file found for {ringedges_file}, skipping...")
             continue
         
-        # 1) Find the highest residue number on chain A (offset)
-        offset_a = parse_ring_nodes(ringnodes_file)
-        
-        # 2) Parse the ringEdges file
+        # Parse the ringEdges file
         with open(ringedges_file, 'r') as f:
             lines = f.readlines()
             # Skip header
@@ -107,19 +81,17 @@ def main():
                 
                 # We only care about chain A <-> chain B
                 if chain1 == 'A' and chain2 == 'B':
-                    b_res_num_norm = resnum2_int - offset_a
-                    interactions[(b_res_num_norm, res3name2, resnum2_int)][res3name1] += 1
-                    interaction_details[(b_res_num_norm, res3name2, resnum2_int)][res3name1].append((base_filename, resnum1_int))
+                    interactions[(resnum2_int, res3name2)][res3name1] += 1
+                    interaction_details[(resnum2_int, res3name2)][res3name1].append((base_filename, resnum1_int))
                 elif chain1 == 'B' and chain2 == 'A':
-                    b_res_num_norm = resnum1_int - offset_a
-                    interactions[(b_res_num_norm, res3name1, resnum1_int)][res3name2] += 1
-                    interaction_details[(b_res_num_norm, res3name1, resnum1_int)][res3name2].append((base_filename, resnum1_int))
+                    interactions[(resnum1_int, res3name1)][res3name2] += 1
+                    interaction_details[(resnum1_int, res3name1)][res3name2].append((base_filename, resnum1_int))
 
     # Summarize the total interactions and pick the top N
     b_info_list = []
-    for (b_res_num_norm, b_res_3name, b_res_orig), a_counts_3name in interactions.items():
+    for (b_res_num, b_res_3name), a_counts_3name in interactions.items():
         total = sum(a_counts_3name.values())
-        b_info_list.append(((b_res_num_norm, b_res_3name, b_res_orig), total))
+        b_info_list.append(((b_res_num, b_res_3name), total))
 
     # Sort by total interactions (descending)
     b_info_list.sort(key=lambda x: x[1], reverse=True)
@@ -128,7 +100,7 @@ def main():
     if args.top is not None:
         b_info_list = b_info_list[:args.top]
     
-    # Sort by the normalized B residue number (ascending)
+    # Sort by B residue number (ascending)
     b_info_list.sort(key=lambda x: x[0][0])
 
     # Print a header row for easier parsing (e.g. to feed into a logo tool)
@@ -137,10 +109,10 @@ def main():
     header_cols = ["B_residue", "Total"] + AA_ORDER + ["Details"]
     print("\t".join(header_cols))
 
-    for ((b_res_num_norm, b_res_3name, b_res_orig), total_int) in b_info_list:
+    for ((b_res_num, b_res_3name), total_int) in b_info_list:
         # Build a dict for counts by single-letter code
-        a_counts_3name = interactions[(b_res_num_norm, b_res_3name, b_res_orig)]
-        a_details = interaction_details[(b_res_num_norm, b_res_3name, b_res_orig)]
+        a_counts_3name = interactions[(b_res_num, b_res_3name)]
+        a_details = interaction_details[(b_res_num, b_res_3name)]
         
         # Convert 3-letter AAs to 1-letter, summing up
         single_letter_counts = defaultdict(int)
@@ -151,9 +123,9 @@ def main():
             single_letter_details[aa1].extend(a_details[aa3])
         
         # Build the row:
-        # "B:norm:orig:1letter" format
+        # "B:res_num:1letter" format
         b_res_1letter = AA_3TO1.get(b_res_3name, 'X')
-        b_label = f"B:{b_res_num_norm}:{b_res_orig}:{b_res_1letter}"
+        b_label = f"B:{b_res_num}:{b_res_1letter}"
         row = [b_label, str(total_int)]
         
         # Frequencies for each standard AA in AA_ORDER
