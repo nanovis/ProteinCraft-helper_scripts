@@ -1,1 +1,1 @@
-export PYTHONPATH="${PYTHONPATH}:/home/luod/ProteinCraft/tulip/build_python311/install/lib/tulip/python"
+export PYTHONPATH="${PYTHONPATH}:/home/luod/ProteinCraft/tulip/cmake-build-release/install/lib/tulip/python"
