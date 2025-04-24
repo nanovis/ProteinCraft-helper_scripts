@@ -85,6 +85,8 @@ def main():
                 node1       = fields[0]
                 interaction = fields[1]
                 node2       = fields[2]
+                atom1       = fields[5]
+                atom2       = fields[6]
                 
                 # Skip VDW
                 if 'VDW' in interaction:
@@ -107,10 +109,7 @@ def main():
                 # We only care about chain A <-> chain B
                 if chain1 == 'A' and chain2 == 'B':
                     interactions[(resnum2_int, res3name2)][res3name1] += 1
-                    interaction_details[(resnum2_int, res3name2)][res3name1].append((base_filename, resnum1_int, dssp1))
-                elif chain1 == 'B' and chain2 == 'A':
-                    interactions[(resnum1_int, res3name1)][res3name2] += 1
-                    interaction_details[(resnum1_int, res3name1)][res3name2].append((base_filename, resnum2_int, dssp2))
+                    interaction_details[(resnum2_int, res3name2)][res3name1].append((base_filename, resnum1_int, dssp1, atom1, atom2))
 
     # Summarize the total interactions and pick the top N
     b_info_list = []
@@ -166,8 +165,8 @@ def main():
             if aa1 in single_letter_details:
                 # Sort by residue number
                 sorted_details = sorted(single_letter_details[aa1], key=lambda x: x[1])
-                for filename, resnum, dssp in sorted_details:
-                    details_list.append(f"{filename}:A:{resnum}:{aa1}:{dssp}")
+                for filename, resnum, dssp, atom1, atom2 in sorted_details:
+                    details_list.append(f"{filename}:A:{resnum}:{aa1}:{dssp}:{atom1}:{atom2}")
         
         row.append("|".join(details_list))
         
