@@ -130,8 +130,8 @@ def main():
 
     # Print a header row for easier parsing (e.g. to feed into a logo tool)
     # The columns are:
-    #  B_Residue  Total   (then freq of each A amino acid in AA_ORDER)  Details
-    header_cols = ["B_residue", "Total"] + AA_ORDER + ["Details"]
+    #  B_Residue  Total   (then freq of each A amino acid in AA_ORDER)  BondsJson
+    header_cols = ["B_residue", "Total"] + AA_ORDER + ["BondsJson"]
     print("\t".join(header_cols))
 
     for ((b_res_num, b_res_3name), total_int) in b_info_list:
