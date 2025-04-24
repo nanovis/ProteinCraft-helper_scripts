@@ -2,6 +2,7 @@ import os
 import glob
 from collections import defaultdict
 import argparse
+import json
 
 # Map 3-letter to 1-letter codes
 AA_3TO1 = {
@@ -166,9 +167,18 @@ def main():
                 # Sort by residue number
                 sorted_details = sorted(single_letter_details[aa1], key=lambda x: x[1])
                 for filename, resnum, dssp, atom1, atom2 in sorted_details:
-                    details_list.append(f"{filename}:A:{resnum}:{aa1}:{dssp}:{atom1}:{atom2}")
+                    bond_json = {
+                        "structureFile": filename,
+                        "resNum1": resnum,
+                        "resNum2": b_res_num,
+                        "resType1": aa1,
+                        "dssp1": dssp,
+                        "atom1": atom1,
+                        "atom2": atom2
+                    }
+                    details_list.append(json.dumps(bond_json))
         
-        row.append("|".join(details_list))
+        row.append(str(details_list))
         
         print("\t".join(row))
 
