@@ -176,12 +176,11 @@ def main():
                 for filename, dssp1, interaction, node1, node2, atom1, atom2 in sorted_details:
                     # Parse residue numbers from node strings
                     chain1, resnum1, res3name1 = parse_node_id(node1)
-                    chain2, resnum2, res3name2 = parse_node_id(node2)
 
                     single_bond_json = {
                         "structureFile": filename,
                         "dssp1": dssp1,
-                        "resNum1": resnum1,
+                        "resNum1": int(resnum1),
                         "resType1": AA_3TO1.get(res3name1, 'X'),
                         "interaction": interaction,
                         "res1": node1,
