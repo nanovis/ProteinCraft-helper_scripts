@@ -110,7 +110,14 @@ def main():
                 # We only care about chain A <-> chain B
                 if chain1 == 'A' and chain2 == 'B':
                     interactions[(resnum2_int, res3name2)][res3name1] += 1
-                    interaction_details[(resnum2_int, res3name2)][res3name1].append((base_filename, resnum1_int, dssp1, atom1, atom2))
+                    interaction_details[(resnum2_int, res3name2)][res3name1].append((
+                        base_filename, 
+                        dssp1, 
+                        interaction,
+                        node1,
+                        node2,
+                        atom1, 
+                        atom2))
 
     # Summarize the total interactions and pick the top N
     b_info_list = []
@@ -165,14 +172,20 @@ def main():
         for aa1 in AA_ORDER:
             if aa1 in single_letter_details:
                 # Sort by residue number
-                sorted_details = sorted(single_letter_details[aa1], key=lambda x: x[1])
-                for filename, resnum, dssp, atom1, atom2 in sorted_details:
+                sorted_details = sorted(single_letter_details[aa1], key=lambda x: x[0])  # Sort by filename
+                for filename, dssp1, interaction, node1, node2, atom1, atom2 in sorted_details:
+                    # Parse residue numbers from node strings
+                    chain1, resnum1, res3name1 = parse_node_id(node1)
+                    chain2, resnum2, res3name2 = parse_node_id(node2)
+
                     single_bond_json = {
                         "structureFile": filename,
-                        "resNum1": resnum,
-                        "resNum2": b_res_num,
-                        "resType1": aa1,
-                        "dssp1": dssp,
+                        "dssp1": dssp1,
+                        "resNum1": resnum1,
+                        "resType1": AA_3TO1.get(res3name1, 'X'),
+                        "interaction": interaction,
+                        "res1": node1,
+                        "res2": node2,
                         "atom1": atom1,
                         "atom2": atom2
                     }
