@@ -160,14 +160,14 @@ def main():
             freq = c / total_int if total_int > 0 else 0
             row.append(f"{freq:.3f}")
         
-        # Build the details string
-        details_list = []
+        # First collect all bond JSON objects
+        bond_jsons = []
         for aa1 in AA_ORDER:
             if aa1 in single_letter_details:
                 # Sort by residue number
                 sorted_details = sorted(single_letter_details[aa1], key=lambda x: x[1])
                 for filename, resnum, dssp, atom1, atom2 in sorted_details:
-                    bond_json = {
+                    single_bond_json = {
                         "structureFile": filename,
                         "resNum1": resnum,
                         "resNum2": b_res_num,
@@ -176,9 +176,10 @@ def main():
                         "atom1": atom1,
                         "atom2": atom2
                     }
-                    details_list.append(json.dumps(bond_json))
+                    bond_jsons.append(single_bond_json)
         
-        row.append(str(details_list))
+        # Then convert the entire list to a JSON array string
+        row.append(json.dumps(bond_jsons))
         
         print("\t".join(row))
 
