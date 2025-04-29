@@ -86,6 +86,7 @@ def main():
                     continue
         
         debug_print(f"Processed {len(residue_dssp)} residues from ringNodes file")  # Debug print
+        debug_print(f"Unique chains in ringNodes: {set(chain for chain, _ in residue_dssp.keys())}")  # Debug print
         
         # Parse the ringEdges file
         with open(ringedges_file, 'r') as f:
@@ -109,6 +110,8 @@ def main():
                 chain1, resnum1, res3name1 = parse_node_id(node1)
                 chain2, resnum2, res3name2 = parse_node_id(node2)
                 
+                debug_print(f"Found interaction: {chain1}:{resnum1}:{res3name1} -> {chain2}:{resnum2}:{res3name2} ({interaction})")  # Debug print
+                
                 # Convert to integers if possible
                 try:
                     resnum1_int = int(resnum1)
@@ -121,7 +124,8 @@ def main():
                 dssp2 = residue_dssp.get((chain2, resnum2_int), "")
                 
                 # We only care about chain A <-> chain B
-                if chain1 == 'A' and chain2 == 'B':
+                if (chain1 == 'A' and chain2 == 'B') or (chain1 == 'B' and chain2 == 'A'):
+                    debug_print(f"Found A<->B interaction: {chain1}:{resnum1}:{res3name1} <-> {chain2}:{resnum2}:{res3name2}")  # Debug print
                     interactions[(resnum2_int, res3name2)][res3name1] += 1
                     interaction_details[(resnum2_int, res3name2)][res3name1].append((
                         base_filename, 
@@ -133,6 +137,8 @@ def main():
                         atom2))
         
         debug_print(f"Found {len(interactions)} unique B-chain residues with interactions")  # Debug print
+        if len(interactions) == 0:
+            debug_print("No A->B interactions found in this file")  # Debug print
 
     # Summarize the total interactions and pick the top N
     b_info_list = []
