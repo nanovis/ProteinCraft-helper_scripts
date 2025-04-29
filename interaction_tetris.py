@@ -38,14 +38,18 @@ def main():
     parser.add_argument('--top', type=int, help='Number of top interactions to output (default: all)')
     args = parser.parse_args()
 
+    print(f"Processing folder: {args.folder_path}")  # Debug print
+
     # Find all ring edges files in the specified folder
     ringedges_files = glob.glob(os.path.join(args.folder_path, '*_ringEdges'))
     
+    print(f"Found {len(ringedges_files)} ring edges files")  # Debug print
     if not ringedges_files:
         print(f"Warning: No ring edges files found in {args.folder_path}")
         return
 
     for ringedges_file in ringedges_files:
+        print(f"\nProcessing file: {ringedges_file}")  # Debug print
         # Get filename without _ringEdges for the details column
         base_filename = os.path.basename(ringedges_file).replace('_ringEdges', '')
         
@@ -58,6 +62,7 @@ def main():
         residue_dssp = {}  # Maps (chain, resnum) -> dssp
         with open(ringnodes_file, 'r') as f:
             lines = f.readlines()
+            print(f"Found {len(lines)} lines in ringNodes file")  # Debug print
             # Skip header
             for line in lines[1:]:
                 fields = line.strip().split('\t')
@@ -75,9 +80,12 @@ def main():
                 except ValueError:
                     continue
         
+        print(f"Processed {len(residue_dssp)} residues from ringNodes file")  # Debug print
+        
         # Parse the ringEdges file
         with open(ringedges_file, 'r') as f:
             lines = f.readlines()
+            print(f"Found {len(lines)} lines in ringEdges file")  # Debug print
             # Skip header
             for line in lines[1:]:
                 fields = line.strip().split('\t')
@@ -118,12 +126,16 @@ def main():
                         node2,
                         atom1, 
                         atom2))
+        
+        print(f"Found {len(interactions)} unique B-chain residues with interactions")  # Debug print
 
     # Summarize the total interactions and pick the top N
     b_info_list = []
     for (b_res_num, b_res_3name), a_counts_3name in interactions.items():
         total = sum(a_counts_3name.values())
         b_info_list.append(((b_res_num, b_res_3name), total))
+
+    print(f"\nTotal unique B-chain residues with interactions: {len(b_info_list)}")  # Debug print
 
     # Sort by total interactions (descending)
     b_info_list.sort(key=lambda x: x[1], reverse=True)
