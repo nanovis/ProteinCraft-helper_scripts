@@ -123,22 +123,35 @@ def main():
                 dssp1 = residue_dssp.get((chain1, resnum1_int), "")
                 dssp2 = residue_dssp.get((chain2, resnum2_int), "")
                 
-                # We only care about chain A <-> chain B
+                # Track both A->B and B->A interactions
                 if (chain1 == 'A' and chain2 == 'B') or (chain1 == 'B' and chain2 == 'A'):
-                    debug_print(f"Found A<->B interaction: {chain1}:{resnum1}:{res3name1} <-> {chain2}:{resnum2}:{res3name2}")  # Debug print
-                    interactions[(resnum2_int, res3name2)][res3name1] += 1
-                    interaction_details[(resnum2_int, res3name2)][res3name1].append((
-                        base_filename, 
-                        dssp1, 
-                        interaction,
-                        node1,
-                        node2,
-                        atom1, 
-                        atom2))
+                    debug_print(f"Found A-B interaction: {chain1}:{resnum1}:{res3name1} -> {chain2}:{resnum2}:{res3name2}")  # Debug print
+                    # For A->B, store in B's perspective
+                    if chain1 == 'A' and chain2 == 'B':
+                        interactions[(resnum2_int, res3name2)][res3name1] += 1
+                        interaction_details[(resnum2_int, res3name2)][res3name1].append((
+                            base_filename, 
+                            dssp1, 
+                            interaction,
+                            node1,
+                            node2,
+                            atom1, 
+                            atom2))
+                    # For B->A, store in A's perspective
+                    else:
+                        interactions[(resnum1_int, res3name1)][res3name2] += 1
+                        interaction_details[(resnum1_int, res3name1)][res3name2].append((
+                            base_filename, 
+                            dssp2, 
+                            interaction,
+                            node2,
+                            node1,
+                            atom2, 
+                            atom1))
         
-        debug_print(f"Found {len(interactions)} unique B-chain residues with interactions")  # Debug print
+        debug_print(f"Found {len(interactions)} unique residues with interactions")  # Debug print
         if len(interactions) == 0:
-            debug_print("No A->B interactions found in this file")  # Debug print
+            debug_print("No A-B interactions found in this file")  # Debug print
 
     # Summarize the total interactions and pick the top N
     b_info_list = []
@@ -146,7 +159,7 @@ def main():
         total = sum(a_counts_3name.values())
         b_info_list.append(((b_res_num, b_res_3name), total))
 
-    debug_print(f"\nTotal unique B-chain residues with interactions: {len(b_info_list)}")  # Debug print
+    debug_print(f"\nTotal unique residues with interactions: {len(b_info_list)}")  # Debug print
 
     # Sort by total interactions (descending)
     b_info_list.sort(key=lambda x: x[1], reverse=True)
