@@ -27,9 +27,9 @@ def parse_node_id(node_str):
     residue_3name = parts[3]  # e.g. 'LYS'
     return chain_id, residue_num, residue_3name
 
-def parse_backbone_coords(pdb_file):
+def parse_backbone_coords(ring_file):
     """
-    Parse backbone coordinates (N, CA, C, O) from a PDB file.
+    Parse backbone coordinates (N, CA, C, O) from a PDB or mmCIF file.
     Returns a dict mapping (chain, resnum) -> [N_coords, CA_coords, C_coords, O_coords]
     where each coords is [x, y, z]
     """
@@ -37,8 +37,59 @@ def parse_backbone_coords(pdb_file):
     current_res = None
     current_coords = {}
     
-    with open(pdb_file, 'r') as f:
-        for line in f:
+    with open(ring_file, 'r') as f:
+        lines = f.readlines()
+        
+    # Check if it's a mmCIF file by looking for _atom_site records
+    is_mmcif = any('_atom_site.' in line for line in lines[:100])
+    
+    if is_mmcif:
+        # Parse mmCIF format
+        # First find the column indices for the fields we need
+        col_indices = {}
+        for i, line in enumerate(lines):
+            if line.startswith('_atom_site.'):
+                field = line.split('.')[1].strip()
+                if field in ['group_PDB', 'auth_atom_id', 'auth_comp_id', 'auth_asym_id', 'auth_seq_id', 'Cartn_x', 'Cartn_y', 'Cartn_z']:
+                    col_indices[field] = i
+            elif line.startswith('ATOM') or line.startswith('HETATM'):
+                break
+        
+        # Now parse the atom records
+        for line in lines:
+            if not (line.startswith('ATOM') or line.startswith('HETATM')):
+                continue
+                
+            fields = line.split()
+            if len(fields) < max(col_indices.values()) + 1:
+                continue
+                
+            atom_name = fields[col_indices['auth_atom_id']]
+            if atom_name not in ['N', 'CA', 'C', 'O']:
+                continue
+                
+            chain = fields[col_indices['auth_asym_id']]
+            resnum = int(fields[col_indices['auth_seq_id']])
+            x = float(fields[col_indices['Cartn_x']])
+            y = float(fields[col_indices['Cartn_y']])
+            z = float(fields[col_indices['Cartn_z']])
+            
+            res_key = (chain, resnum)
+            if res_key != current_res:
+                if current_res is not None and len(current_coords) == 4:
+                    backbone_coords[current_res] = [
+                        current_coords['N'],
+                        current_coords['CA'],
+                        current_coords['C'],
+                        current_coords['O']
+                    ]
+                current_res = res_key
+                current_coords = {}
+            
+            current_coords[atom_name] = [x, y, z]
+    else:
+        # Parse PDB format
+        for line in lines:
             if not line.startswith('ATOM'):
                 continue
                 
