@@ -37,11 +37,11 @@ def parse_backbone_coords(ring_file):
     current_res = None
     current_coords = {}
     
+    # Determine file type from extension
+    is_mmcif = ring_file.endswith('.cif_ring')
+    
     with open(ring_file, 'r') as f:
         lines = f.readlines()
-        
-    # Check if it's a mmCIF file by looking for _atom_site records
-    is_mmcif = any('_atom_site.' in line for line in lines[:100])
     
     if is_mmcif:
         # Parse mmCIF format
