@@ -76,6 +76,7 @@ def fix_pdb_file(input_path, output_path, fixes):
                 line = line[:17] + new_name + line[20:]
         new_lines.append(line)
 
+    new_lines.append("\n")
     # Append FIXED remarks at end
     for (chain, resnum), _ in sorted(fixes.items(), key=lambda x: x[0][1]):
         remark = f"REMARK PDBinfo-LABEL:{resnum:>5} FIXED\n"
