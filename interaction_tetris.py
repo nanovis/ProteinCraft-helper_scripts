@@ -27,6 +27,56 @@ def parse_node_id(node_str):
     residue_3name = parts[3]  # e.g. 'LYS'
     return chain_id, residue_num, residue_3name
 
+def parse_backbone_coords(pdb_file):
+    """
+    Parse backbone coordinates (N, CA, C, O) from a PDB file.
+    Returns a dict mapping (chain, resnum) -> [N_coords, CA_coords, C_coords, O_coords]
+    where each coords is [x, y, z]
+    """
+    backbone_coords = {}
+    current_res = None
+    current_coords = {}
+    
+    with open(pdb_file, 'r') as f:
+        for line in f:
+            if not line.startswith('ATOM'):
+                continue
+                
+            atom_name = line[12:16].strip()
+            if atom_name not in ['N', 'CA', 'C', 'O']:
+                continue
+                
+            chain = line[21]
+            resnum = int(line[22:26])
+            x = float(line[30:38])
+            y = float(line[38:46])
+            z = float(line[46:54])
+            
+            res_key = (chain, resnum)
+            if res_key != current_res:
+                if current_res is not None and len(current_coords) == 4:
+                    backbone_coords[current_res] = [
+                        current_coords['N'],
+                        current_coords['CA'],
+                        current_coords['C'],
+                        current_coords['O']
+                    ]
+                current_res = res_key
+                current_coords = {}
+            
+            current_coords[atom_name] = [x, y, z]
+    
+    # Don't forget the last residue
+    if current_res is not None and len(current_coords) == 4:
+        backbone_coords[current_res] = [
+            current_coords['N'],
+            current_coords['CA'],
+            current_coords['C'],
+            current_coords['O']
+        ]
+    
+    return backbone_coords
+
 # This dict maps (b_res_num, b_res_name_3) -> { a_res_name_3: count_of_interactions }
 interactions = defaultdict(lambda: defaultdict(int))
 # This dict maps (b_res_num, b_res_name_3) -> { a_res_name_3: [(filename, resnum), ...] }
@@ -62,6 +112,15 @@ def main():
         if not os.path.exists(ringnodes_file):
             print(f"Warning: No corresponding ringNodes file found for {ringedges_file}, skipping...")
             continue
+            
+        ring_file = ringedges_file.replace('_ringEdges', '_ring')
+        if not os.path.exists(ring_file):
+            print(f"Warning: No corresponding ring file found for {ringedges_file}, skipping...")
+            continue
+        
+        # Parse backbone coordinates from the ring file
+        backbone_coords = parse_backbone_coords(ring_file)
+        debug_print(f"Found backbone coordinates for {len(backbone_coords)} residues")  # Debug print
         
         # Parse the ringNodes file to get DSSP information
         residue_dssp = {}  # Maps (chain, resnum) -> dssp
@@ -123,6 +182,9 @@ def main():
                 dssp1 = residue_dssp.get((chain1, resnum1_int), "")
                 dssp2 = residue_dssp.get((chain2, resnum2_int), "")
                 
+                # Get backbone coordinates
+                backbone1 = backbone_coords.get((chain1, resnum1_int), None)
+                
                 # Track both A->B and B->A interactions
                 if (chain1 == 'A' and chain2 == 'B') or (chain1 == 'B' and chain2 == 'A'):
                     debug_print(f"Found A-B interaction: {chain1}:{resnum1}:{res3name1} -> {chain2}:{resnum2}:{res3name2}")  # Debug print
@@ -136,7 +198,8 @@ def main():
                             node1,
                             node2,
                             atom1, 
-                            atom2))
+                            atom2,
+                            backbone1))
                     # For B->A, store in A's perspective
                     else:
                         interactions[(resnum1_int, res3name1)][res3name2] += 1
@@ -147,7 +210,8 @@ def main():
                             node2,
                             node1,
                             atom2, 
-                            atom1))
+                            atom1,
+                            backbone1))
         
         debug_print(f"Found {len(interactions)} unique residues with interactions")  # Debug print
         if len(interactions) == 0:
@@ -209,7 +273,7 @@ def main():
             if aa1 in single_letter_details:
                 # Sort by residue number
                 sorted_details = sorted(single_letter_details[aa1], key=lambda x: x[0])  # Sort by filename
-                for filename, dssp1, interaction, node1, node2, atom1, atom2 in sorted_details:
+                for filename, dssp1, interaction, node1, node2, atom1, atom2, backbone1 in sorted_details:
                     # Parse residue numbers from node strings
                     chain1, resnum1, res3name1 = parse_node_id(node1)
 
@@ -222,7 +286,8 @@ def main():
                         "res1": node1,
                         "res2": node2,
                         "atom1": atom1,
-                        "atom2": atom2
+                        "atom2": atom2,
+                        "res1_backbone_coords": backbone1
                     }
                     bond_jsons.append(single_bond_json)
         
