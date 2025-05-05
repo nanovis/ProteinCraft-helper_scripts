@@ -75,7 +75,7 @@ def calculate_backbone_distance(backbone1, backbone2):
 
 def parse_backbone_coords(pdb_file):
     """
-    Parse backbone coordinates (N, CA, C, O) from a PDB file.
+    Parse backbone coordinates (N, CA, C, O) from a PDB file, only for chain A.
     Returns a dict mapping (chain, resnum) -> [N_coords, CA_coords, C_coords, O_coords]
     where each coords is [x, y, z]
     """
@@ -88,11 +88,14 @@ def parse_backbone_coords(pdb_file):
             if not line.startswith('ATOM'):
                 continue
                 
+            chain = line[21]
+            if chain != 'A':  # Skip if not chain A
+                continue
+                
             atom_name = line[12:16].strip()
             if atom_name not in ['N', 'CA', 'C', 'O']:
                 continue
                 
-            chain = line[21]
             resnum = int(line[22:26])
             x = float(line[30:38])
             y = float(line[38:46])
@@ -127,31 +130,31 @@ def parse_backbone_coords(pdb_file):
 def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0):
     """
     Read a PDB file, snap specified residues to their nearest backbone positions,
-    and append REMARK lines.
+    and append REMARK lines. Only updates the residue name, preserving chain and residue number.
 
     Args:
         input_path (str): Path to the original PDB.
         output_path (str): Path where the modified PDB will be saved.
-        bouquet_mapping (dict): { filename: { (chain, resnum): (backbone_coords, resname), ... }, ... }
+        bouquet_mapping (dict): { (chain, resnum): (backbone_coords, resname), ... }
         dist_threshold (float): Maximum distance threshold for snapping
     """
     # Get the backbone coordinates from the input PDB
     backbone_coords = parse_backbone_coords(input_path)
     
-    # Find the best matches for each bouquet residue
-    snaps = {}  # {(chain, resnum): (target_chain, target_resnum, resname)}
-    for (chain, resnum), (bouquet_backbone, resname) in bouquet_mapping.items():
+    # Find the best matches for each backbone position
+    snaps = {}  # {(chain, resnum): resname}
+    for (chain, resnum), target_backbone in backbone_coords.items():
         min_dist = dist_threshold
         best_match = None
         
-        for (target_chain, target_resnum), target_backbone in backbone_coords.items():
+        for (_, _), (bouquet_backbone, resname) in bouquet_mapping.items():
             dist = calculate_backbone_distance(bouquet_backbone, target_backbone)
             if dist < min_dist:
                 min_dist = dist
-                best_match = (target_chain, target_resnum)
+                best_match = resname
         
         if best_match:
-            snaps[(chain, resnum)] = (*best_match, resname)
+            snaps[(chain, resnum)] = best_match
     
     # Read and modify the PDB file
     with open(input_path, 'r') as f:
@@ -166,17 +169,15 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0):
             except ValueError:
                 resnum = None
             if (chain, resnum) in snaps:
-                target_chain, target_resnum, new_name = snaps[(chain, resnum)]
-                # Update chain and residue number
-                line = line[:21] + target_chain + f"{target_resnum:>4}" + line[26:]
-                # Update residue name
+                # Only update the residue name
+                new_name = snaps[(chain, resnum)]
                 line = line[:17] + new_name.rjust(3) + line[20:]
         new_lines.append(line)
 
     new_lines.append("\n")
     # Append SNAPPED remarks at end
-    for (chain, resnum), (target_chain, target_resnum, resname) in sorted(snaps.items(), key=lambda x: x[0][1]):
-        remark = f"REMARK PDBinfo-LABEL:{resnum:>5} SNAPPED to {target_chain}:{target_resnum} as {resname}\n"
+    for (chain, resnum), resname in sorted(snaps.items(), key=lambda x: x[0][1]):
+        remark = f"REMARK PDBinfo-LABEL:{resnum:>5} FIXED\n"
         new_lines.append(remark)
 
     with open(output_path, 'w') as f:
