@@ -208,28 +208,22 @@ def main():
     bouquet_mapping = parse_tsv(args.tsv_file)
     os.makedirs(args.new_folder, exist_ok=True)
 
-    # Process each PDB file
-    for pdb_file, fixes in bouquet_mapping.items():
-        # try exact filename first
-        input_path = os.path.join(args.old_folder, pdb_file)
-        output_name = pdb_file
-        if not os.path.exists(input_path):
-            # fallback: try different filename patterns
-            # strip everything after first '_dldesign' and add .pdb
-            prefix = pdb_file.split('_dldesign')[0]
-            alt_name = prefix + '.pdb'
-            alt_path = os.path.join(args.old_folder, alt_name)
+    # Pool all residue mappings from all files
+    pooled_fixes = {}
+    for file_mapping in bouquet_mapping.values():
+        pooled_fixes.update(file_mapping)
+
+    # Process all PDB files in the old folder
+    for filename in os.listdir(args.old_folder):
+        if not filename.endswith('.pdb'):
+            continue
             
-            if not os.path.exists(alt_path):
-                print(f"Warning: '{pdb_file}' not found and no fallback '{alt_name}', skipping.")
-                continue
-            else:
-                input_path = alt_path
-                output_name = alt_name
+        input_path = os.path.join(args.old_folder, filename)
+        output_path = os.path.join(args.new_folder, filename)
         
-        output_path = os.path.join(args.new_folder, output_name)
-        num_snaps = snap_pdb_file(input_path, output_path, fixes, args.dist_threshold)
-        print(f"Processed {output_name}: snapped {num_snaps} residue(s).")
+        # Use the pooled fixes for every file
+        num_snaps = snap_pdb_file(input_path, output_path, pooled_fixes, args.dist_threshold)
+        print(f"Processed {filename}: snapped {num_snaps} residue(s).")
 
 
 if __name__ == '__main__':
