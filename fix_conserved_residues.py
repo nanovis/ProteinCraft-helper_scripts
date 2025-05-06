@@ -9,6 +9,7 @@ import os
 import csv
 import json
 import argparse
+import shutil
 from collections import Counter
 
 
@@ -104,6 +105,9 @@ def main():
         '--min-fixes', type=int, default=2,
         help='Minimum number of fixes required to process a PDB file (default: 2)'
     )
+    parser.add_argument(
+        '--outs-original', help='Directory to save original .pdb files before modification'
+    )
     args = parser.parse_args()
 
     mapping = parse_tsv(args.tsv_file)
@@ -113,6 +117,8 @@ def main():
     # Filter mapping to keep only entries with minimum number of fixes
     mapping = {k: v for k, v in mapping.items() if len(v) >= args.min_fixes}
     os.makedirs(args.output_folder, exist_ok=True)
+    if args.outs_original:
+        os.makedirs(args.outs_original, exist_ok=True)
 
     for pdb_file, fixes in mapping.items():
         # try exact filename first
@@ -129,6 +135,13 @@ def main():
             else:
                 print(f"Warning: '{pdb_file}' not found and no fallback '{alt_name}', skipping.")
                 continue
+
+        # Copy original file if outs_original is provided
+        if args.outs_original:
+            original_output = os.path.join(args.outs_original, output_name)
+            shutil.copy2(input_path, original_output)
+            print(f"Copied original {output_name} to {args.outs_original}")
+
         output_path = os.path.join(args.output_folder, output_name)
         fix_pdb_file(input_path, output_path, fixes)
         print(f"Processed {output_name}: applied {len(fixes)} residue fix(es).")
