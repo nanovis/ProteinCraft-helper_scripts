@@ -19,7 +19,7 @@ def parse_tsv(tsv_file):
     Parse the TSV and build a mapping from PDB filename to the residues to snap.
     Assumes a tab-delimited file with a column named exactly 'BondsJson'.
     Returns:
-        dict: { filename: { (chain, resnum): (backbone_coords, resname), ... }, ... }
+        dict: { filename: { (chain, resnum): (backbone_coords, resname, bond_details), ... }, ... }
     """
     mapping = {}
     with open(tsv_file, newline='') as f:
@@ -51,7 +51,17 @@ def parse_tsv(tsv_file):
                 except ValueError:
                     print(f"Warning: invalid residue number '{resnum_str}' in {res1}")
                     continue
-                mapping.setdefault(pdb_file, {})[(chain, resnum)] = (backbone_coords, resname)
+                
+                # Store additional bond details
+                bond_details = {
+                    'structureFile': pdb_file,
+                    'dssp1': entry.get('dssp1'),
+                    'resType1': entry.get('resType1'),
+                    'interaction': entry.get('interaction'),
+                    'res1': res1
+                }
+                
+                mapping.setdefault(pdb_file, {})[(chain, resnum)] = (backbone_coords, resname, bond_details)
     return mapping
 
 
@@ -136,7 +146,7 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
     Args:
         input_path (str): Path to the original PDB.
         output_path (str): Path where the modified PDB will be saved.
-        bouquet_mapping (dict): { (chain, resnum): (backbone_coords, resname), ... }
+        bouquet_mapping (dict): { (chain, resnum): (backbone_coords, resname, bond_details), ... }
         dist_threshold (float): Maximum distance threshold for snapping
         min_snaps (int): Minimum number of snaps required to write output file
     """
@@ -144,21 +154,31 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
     backbone_coords = parse_backbone_coords(input_path)
     
     # Find the best matches for each backbone position
-    snaps = {}  # {(chain, resnum): resname}
+    snaps = {}  # {(chain, resnum): (resname, bond_details)}
     snap_details = []  # List to store details for printing
     for (chain, resnum), target_backbone in backbone_coords.items():
         min_dist = dist_threshold
         best_match = None
+        best_details = None
         
-        for (_, _), (bouquet_backbone, resname) in bouquet_mapping.items():
+        for (_, _), (bouquet_backbone, resname, bond_details) in bouquet_mapping.items():
             dist = calculate_backbone_distance(bouquet_backbone, target_backbone)
             if dist < min_dist:
                 min_dist = dist
                 best_match = resname
+                best_details = bond_details
         
         if best_match:
-            snaps[(chain, resnum)] = best_match
-            snap_details.append(f"  Snap {best_match} -> {resnum:4d} with distance {min_dist:.2f}")
+            snaps[(chain, resnum)] = (best_match, best_details)
+            details = best_details
+            snap_details.append(
+                f"  Snap {best_match} -> {chain}:{resnum} with distance {min_dist:.2f}\n"
+                f"    Structure: {details['structureFile']}\n"
+                f"    DSSP: {details['dssp1']}\n"
+                f"    ResType: {details['resType1']}\n"
+                f"    Interaction: {details['interaction']}\n"
+                f"    Res1: {details['res1']}"
+            )
     
     # Only proceed if we have enough snaps
     if len(snaps) < min_snaps:
@@ -178,13 +198,13 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
                 resnum = None
             if (chain, resnum) in snaps:
                 # Only update the residue name
-                new_name = snaps[(chain, resnum)]
+                new_name = snaps[(chain, resnum)][0]
                 line = line[:17] + new_name.rjust(3) + line[20:]
         new_lines.append(line)
 
     new_lines.append("\n")
     # Append SNAPPED remarks at end
-    for (chain, resnum), resname in sorted(snaps.items(), key=lambda x: x[0][1]):
+    for (chain, resnum), (resname, _) in sorted(snaps.items(), key=lambda x: x[0][1]):
         remark = f"REMARK PDBinfo-LABEL:{resnum:>5} FIXED\n"
         new_lines.append(remark)
 
