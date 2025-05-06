@@ -112,7 +112,7 @@ def main():
     args = parser.parse_args()
 
     # Log the full command line
-    print(f"\nCommand line: {' '.join(sys.argv)}")
+    print(f"\nCommand line: fix_conserved_residues.py {' '.join(sys.argv)}")
     print(f"Working directory: {os.getcwd()}")
     print("-" * 80)
 
