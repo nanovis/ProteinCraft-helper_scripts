@@ -99,9 +99,15 @@ def main():
     parser.add_argument(
         'output_folder', help='Directory to save modified .pdb files'
     )
+    parser.add_argument(
+        '--min-fixes', type=int, default=2,
+        help='Minimum number of fixes required to process a PDB file (default: 2)'
+    )
     args = parser.parse_args()
 
     mapping = parse_tsv(args.tsv_file)
+    # Filter mapping to keep only entries with minimum number of fixes
+    mapping = {k: v for k, v in mapping.items() if len(v) >= args.min_fixes}
     os.makedirs(args.output_folder, exist_ok=True)
 
     for pdb_file, fixes in mapping.items():
