@@ -9,6 +9,7 @@ import os
 import csv
 import json
 import argparse
+from collections import Counter
 
 
 def parse_tsv(tsv_file):
@@ -106,6 +107,9 @@ def main():
     args = parser.parse_args()
 
     mapping = parse_tsv(args.tsv_file)
+    # Collect statistics before filtering
+    fix_counts = Counter(len(fixes) for fixes in mapping.values())
+    
     # Filter mapping to keep only entries with minimum number of fixes
     mapping = {k: v for k, v in mapping.items() if len(v) >= args.min_fixes}
     os.makedirs(args.output_folder, exist_ok=True)
@@ -128,6 +132,13 @@ def main():
         output_path = os.path.join(args.output_folder, output_name)
         fix_pdb_file(input_path, output_path, fixes)
         print(f"Processed {output_name}: applied {len(fixes)} residue fix(es).")
+
+    # Print summary table
+    print("\nSummary of fix counts:")
+    print("Number of fixes | Number of PDBs")
+    print("-" * 35)
+    for num_fixes, count in sorted(fix_counts.items()):
+        print(f"{num_fixes:^14} | {count:^13}")
 
 if __name__ == '__main__':
     main()
