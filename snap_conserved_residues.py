@@ -145,6 +145,7 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
     
     # Find the best matches for each backbone position
     snaps = {}  # {(chain, resnum): resname}
+    snap_details = []  # List to store details for printing
     for (chain, resnum), target_backbone in backbone_coords.items():
         min_dist = dist_threshold
         best_match = None
@@ -157,10 +158,11 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
         
         if best_match:
             snaps[(chain, resnum)] = best_match
+            snap_details.append(f"  Snap {best_match} -> {resnum:4d} with distance {min_dist:.2f}")
     
     # Only proceed if we have enough snaps
     if len(snaps) < min_snaps:
-        return len(snaps)
+        return len(snaps), snap_details
 
     # Read and modify the PDB file
     with open(input_path, 'r') as f:
@@ -189,7 +191,7 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
     with open(output_path, 'w') as f:
         f.writelines(new_lines)
     
-    return len(snaps)
+    return len(snaps), snap_details
 
 
 def main():
@@ -241,11 +243,13 @@ def main():
         output_path = os.path.join(args.new_folder, filename)
         
         # Use the pooled fixes for every file
-        num_snaps = snap_pdb_file(input_path, output_path, pooled_fixes, args.dist_threshold, args.min_snaps)
+        num_snaps, snap_details = snap_pdb_file(input_path, output_path, pooled_fixes, args.dist_threshold, args.min_snaps)
         snap_counts[num_snaps] += 1
         
         if num_snaps >= args.min_snaps:
-            print(f"Processed {filename}: snapped {num_snaps} residue(s).")
+            print(f"Processed {filename}: snapped {num_snaps} residue(s):")
+            for detail in snap_details:
+                print(detail)
         else:
             print(f"Skipped {filename}: only {num_snaps} snap(s), below minimum threshold of {args.min_snaps}")
 
