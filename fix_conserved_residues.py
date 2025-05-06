@@ -135,10 +135,11 @@ def main():
 
     # Print summary table
     print("\nSummary of fix counts:")
-    print("Number of fixes | Number of PDBs")
-    print("-" * 35)
+    print("Number of fixes | Total PDBs | Processed PDBs")
+    print("-" * 50)
     for num_fixes, count in sorted(fix_counts.items()):
-        print(f"{num_fixes:^14} | {count:^13}")
+        processed = count if num_fixes >= args.min_fixes else 0
+        print(f"{num_fixes:^14} | {count:^10} | {processed:^13}")
 
 if __name__ == '__main__':
     main()
