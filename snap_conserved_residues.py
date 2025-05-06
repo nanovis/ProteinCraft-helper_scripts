@@ -10,7 +10,8 @@ import csv
 import json
 import argparse
 import numpy as np
-from collections import defaultdict
+import sys
+from collections import defaultdict, Counter
 
 
 def parse_tsv(tsv_file):
@@ -127,7 +128,7 @@ def parse_backbone_coords(pdb_file):
     return backbone_coords
 
 
-def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0):
+def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, min_snaps=2):
     """
     Read a PDB file, snap specified residues to their nearest backbone positions,
     and append REMARK lines. Only updates the residue name, preserving chain and residue number.
@@ -137,6 +138,7 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0):
         output_path (str): Path where the modified PDB will be saved.
         bouquet_mapping (dict): { (chain, resnum): (backbone_coords, resname), ... }
         dist_threshold (float): Maximum distance threshold for snapping
+        min_snaps (int): Minimum number of snaps required to write output file
     """
     # Get the backbone coordinates from the input PDB
     backbone_coords = parse_backbone_coords(input_path)
@@ -156,6 +158,10 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0):
         if best_match:
             snaps[(chain, resnum)] = best_match
     
+    # Only proceed if we have enough snaps
+    if len(snaps) < min_snaps:
+        return len(snaps)
+
     # Read and modify the PDB file
     with open(input_path, 'r') as f:
         lines = f.readlines()
@@ -203,7 +209,16 @@ def main():
         '--dist-threshold', type=float, default=2.0,
         help='Maximum distance threshold for snapping (default: 2.0)'
     )
+    parser.add_argument(
+        '--min-snaps', type=int, default=2,
+        help='Minimum number of snaps required to process a PDB file (default: 2)'
+    )
     args = parser.parse_args()
+
+    # Log the full command line
+    print(f"\nCommand line: snap_conserved_residues.py {' '.join(sys.argv)}")
+    print(f"Working directory: {os.getcwd()}")
+    print("-" * 80)
 
     # Parse the TSV file to get bouquet mappings
     bouquet_mapping = parse_tsv(args.tsv_file)
@@ -214,6 +229,9 @@ def main():
     for file_mapping in bouquet_mapping.values():
         pooled_fixes.update(file_mapping)
 
+    # Collect statistics about number of snaps
+    snap_counts = Counter()
+
     # Process all PDB files in the old folder
     for filename in os.listdir(args.old_folder):
         if not filename.endswith('.pdb'):
@@ -223,8 +241,21 @@ def main():
         output_path = os.path.join(args.new_folder, filename)
         
         # Use the pooled fixes for every file
-        num_snaps = snap_pdb_file(input_path, output_path, pooled_fixes, args.dist_threshold)
-        print(f"Processed {filename}: snapped {num_snaps} residue(s).")
+        num_snaps = snap_pdb_file(input_path, output_path, pooled_fixes, args.dist_threshold, args.min_snaps)
+        snap_counts[num_snaps] += 1
+        
+        if num_snaps >= args.min_snaps:
+            print(f"Processed {filename}: snapped {num_snaps} residue(s).")
+        else:
+            print(f"Skipped {filename}: only {num_snaps} snap(s), below minimum threshold of {args.min_snaps}")
+
+    # Print summary table
+    print("\nSummary of snap counts:")
+    print("Number of snaps | Total PDBs | Processed PDBs")
+    print("-" * 50)
+    for num_snaps, count in sorted(snap_counts.items()):
+        processed = count if num_snaps >= args.min_snaps else 0
+        print(f"{num_snaps:^14} | {count:^10} | {processed:^13}")
 
 
 if __name__ == '__main__':
