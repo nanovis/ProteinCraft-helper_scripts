@@ -10,6 +10,7 @@ import csv
 import json
 import argparse
 import shutil
+import sys
 from collections import Counter
 
 
@@ -109,6 +110,11 @@ def main():
         '--outs-original', help='Directory to save original .pdb files before modification'
     )
     args = parser.parse_args()
+
+    # Log the full command line
+    print(f"\nCommand line: {' '.join(sys.argv)}")
+    print(f"Working directory: {os.getcwd()}")
+    print("-" * 80)
 
     mapping = parse_tsv(args.tsv_file)
     # Collect statistics before filtering
