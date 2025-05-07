@@ -11,6 +11,7 @@ import json
 import argparse
 import numpy as np
 import sys
+import shutil
 from collections import defaultdict, Counter
 
 
@@ -303,6 +304,9 @@ def main():
         '--min-snaps', type=int, default=2,
         help='Minimum number of snaps required to process a PDB file (default: 2)'
     )
+    parser.add_argument(
+        '--outs-original', help='Directory to save original .pdb files before modification'
+    )
     args = parser.parse_args()
 
     # Log the full command line
@@ -313,6 +317,8 @@ def main():
     # Parse the TSV file to get bouquet mappings
     bouquet_mapping = parse_tsv(args.tsv_file)
     os.makedirs(args.new_folder, exist_ok=True)
+    if args.outs_original:
+        os.makedirs(args.outs_original, exist_ok=True)
 
     # Pool all residue mappings from all files
     pooled_fixes = {}
@@ -338,6 +344,12 @@ def main():
             print(f"Processed {filename}: snapped {num_snaps} residue(s):")
             for detail in snap_details:
                 print(detail)
+
+             # Copy original file if outs_original is provided
+            if args.outs_original:
+                original_output = os.path.join(args.outs_original, filename)
+                shutil.copy2(input_path, original_output)
+                print(f"Copied original {filename} to {args.outs_original}")
         else:
             print(f"Skipped {filename}: only {num_snaps} snap(s), below minimum threshold of distance {args.dist_threshold} and angle {args.angle_threshold}°")
 
