@@ -84,6 +84,62 @@ def calculate_backbone_distance(backbone1, backbone2):
     return total_dist
 
 
+def calculate_backbone_normal(backbone_coords):
+    """
+    Calculate the normal vector of the backbone plane (N-CA-C).
+    Args:
+        backbone_coords: List of 4 coordinate arrays [N, CA, C, O]
+    Returns:
+        numpy.ndarray: Normal vector of the backbone plane
+    """
+    if not backbone_coords or len(backbone_coords) < 3:
+        return None
+    
+    N = np.array(backbone_coords[0])
+    CA = np.array(backbone_coords[1])
+    C = np.array(backbone_coords[2])
+    
+    # Calculate two vectors in the plane
+    v1 = N - CA
+    v2 = C - CA
+    
+    # Calculate normal vector using cross product
+    normal = np.cross(v1, v2)
+    
+    # Normalize the vector
+    norm = np.linalg.norm(normal)
+    if norm == 0:
+        return None
+    
+    return normal / norm
+
+
+def calculate_backbone_rotation_diff(backbone1, backbone2):
+    """
+    Calculate the angle between normal vectors of two backbone planes.
+    Args:
+        backbone1: List of 4 coordinate arrays [N, CA, C, O]
+        backbone2: List of 4 coordinate arrays [N, CA, C, O]
+    Returns:
+        float: Angle between normal vectors in degrees
+    """
+    if not backbone1 or not backbone2:
+        return float('inf')
+    
+    normal1 = calculate_backbone_normal(backbone1)
+    normal2 = calculate_backbone_normal(backbone2)
+    
+    if normal1 is None or normal2 is None:
+        return float('inf')
+    
+    # Calculate angle between normal vectors
+    cos_angle = np.dot(normal1, normal2)
+    cos_angle = np.clip(cos_angle, -1.0, 1.0)  # Ensure value is in valid range
+    angle = np.degrees(np.arccos(cos_angle))
+    
+    return angle
+
+
 def parse_backbone_coords(pdb_file):
     """
     Parse backbone coordinates (N, CA, C, O) from a PDB file, only for chain A.
@@ -138,7 +194,7 @@ def parse_backbone_coords(pdb_file):
     return backbone_coords
 
 
-def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, min_snaps=2):
+def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, angle_threshold=6.0, min_snaps=2):
     """
     Read a PDB file, snap specified residues to their nearest backbone positions,
     and append REMARK lines. Only updates the residue name, preserving chain and residue number.
@@ -147,7 +203,8 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
         input_path (str): Path to the original PDB.
         output_path (str): Path where the modified PDB will be saved.
         bouquet_mapping (dict): { (chain, resnum): (backbone_coords, resname, bond_details), ... }
-        dist_threshold (float): Maximum distance threshold for snapping
+        dist_threshold (float): Maximum distance threshold for snapping (default: 2.0)
+        angle_threshold (float): Maximum angle difference threshold for snapping in degrees (default: 6.0)
         min_snaps (int): Minimum number of snaps required to write output file
     """
     # Get the backbone coordinates from the input PDB
@@ -158,22 +215,28 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
     snap_details = []  # List to store details for printing
     for (chain, resnum), target_backbone in backbone_coords.items():
         min_dist = dist_threshold
+        min_angle_diff = angle_threshold
         best_match = None
         best_details = None
         
         for (_, _), (bouquet_backbone, resname, bond_details) in bouquet_mapping.items():
+            # First check distance
             dist = calculate_backbone_distance(bouquet_backbone, target_backbone)
             if dist < min_dist:
-                min_dist = dist
-                best_match = resname
-                best_details = bond_details
+                # Only check angle if distance passes
+                angle_diff = calculate_backbone_rotation_diff(bouquet_backbone, target_backbone)
+                if angle_diff < min_angle_diff:
+                    min_dist = dist
+                    min_angle_diff = angle_diff
+                    best_match = resname
+                    best_details = bond_details
         
         if best_match:
             snaps[(chain, resnum)] = (best_match, best_details)
             details = best_details
-            action = "Fix" if min_dist < 0.01 else "Snap"
+            action = "Fix" if min_angle_diff < 0.01 else "Snap"
             snap_details.append(
-                f"  {action} {best_match} -> {chain}:{resnum} with distance {min_dist:.2f}\n"
+                f"  {action} {best_match} -> {chain}:{resnum} with distance {min_dist:.2f} and angle difference {min_angle_diff:.2f}°\n"
                 f"    Structure: {details['structureFile']}\n"
                 f"    DSSP: {details['dssp1']}\n"
                 f"    ResType: {details['resType1']}\n"
@@ -233,6 +296,10 @@ def main():
         help='Maximum distance threshold for snapping (default: 2.0)'
     )
     parser.add_argument(
+        '--angle-threshold', type=float, default=6.0,
+        help='Maximum angle difference threshold for snapping in degrees (default: 6.0)'
+    )
+    parser.add_argument(
         '--min-snaps', type=int, default=2,
         help='Minimum number of snaps required to process a PDB file (default: 2)'
     )
@@ -264,7 +331,7 @@ def main():
         output_path = os.path.join(args.new_folder, filename)
         
         # Use the pooled fixes for every file
-        num_snaps, snap_details = snap_pdb_file(input_path, output_path, pooled_fixes, args.dist_threshold, args.min_snaps)
+        num_snaps, snap_details = snap_pdb_file(input_path, output_path, pooled_fixes, args.dist_threshold, args.angle_threshold, args.min_snaps)
         snap_counts[num_snaps] += 1
         
         if num_snaps >= args.min_snaps:
