@@ -194,7 +194,7 @@ def parse_backbone_coords(pdb_file):
     return backbone_coords
 
 
-def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, angle_threshold=6.0, min_snaps=2):
+def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=6.0, angle_threshold=6.0, min_snaps=2):
     """
     Read a PDB file, snap specified residues to their nearest backbone positions,
     and append REMARK lines. Only updates the residue name, preserving chain and residue number.
@@ -203,7 +203,7 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
         input_path (str): Path to the original PDB.
         output_path (str): Path where the modified PDB will be saved.
         bouquet_mapping (dict): { (chain, resnum): (backbone_coords, resname, bond_details), ... }
-        dist_threshold (float): Maximum distance threshold for snapping (default: 2.0)
+        dist_threshold (float): Maximum distance threshold for snapping (default: 6.0)
         angle_threshold (float): Maximum angle difference threshold for snapping in degrees (default: 6.0)
         min_snaps (int): Minimum number of snaps required to write output file
     """
@@ -292,8 +292,8 @@ def main():
         'new_folder', help='Directory to save modified PDB files'
     )
     parser.add_argument(
-        '--dist-threshold', type=float, default=2.0,
-        help='Maximum distance threshold for snapping (default: 2.0)'
+        '--dist-threshold', type=float, default=6.0,
+        help='Maximum distance threshold for snapping (default: 6.0)'
     )
     parser.add_argument(
         '--angle-threshold', type=float, default=6.0,
