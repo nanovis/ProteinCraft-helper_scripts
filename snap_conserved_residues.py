@@ -339,7 +339,7 @@ def main():
             for detail in snap_details:
                 print(detail)
         else:
-            print(f"Skipped {filename}: only {num_snaps} snap(s), below minimum threshold of {args.min_snaps}")
+            print(f"Skipped {filename}: only {num_snaps} snap(s), below minimum threshold of distance {args.dist_threshold} and angle {args.angle_threshold}°")
 
     # Print summary table
     print("\nSummary of snap counts:")
