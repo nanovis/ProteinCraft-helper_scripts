@@ -171,8 +171,9 @@ def snap_pdb_file(input_path, output_path, bouquet_mapping, dist_threshold=2.0, 
         if best_match:
             snaps[(chain, resnum)] = (best_match, best_details)
             details = best_details
+            action = "Fix" if min_dist < 0.01 else "Snap"
             snap_details.append(
-                f"  Snap {best_match} -> {chain}:{resnum} with distance {min_dist:.2f}\n"
+                f"  {action} {best_match} -> {chain}:{resnum} with distance {min_dist:.2f}\n"
                 f"    Structure: {details['structureFile']}\n"
                 f"    DSSP: {details['dssp1']}\n"
                 f"    ResType: {details['resType1']}\n"
